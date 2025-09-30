@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SaaS Auth Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#4a90e2;--success:#27ae60;--danger:#e74c3c;--secondary:#7f8c8d;--background:#f4f6f8;--card:#fff;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',sans-serif;}
+body{background: var(--background); display:flex; flex-direction:column; min-height:100vh;}
+/* Navbar */
+.navbar{height:60px;background:var(--card);display:flex;align-items:center;justify-content:space-between;padding:0 20px;box-shadow:0 2px 10px rgba(0,0,0,0.1); display:none;}
+.navbar .profile{display:flex;align-items:center;cursor:pointer;position:relative;}
+.navbar .profile img{width:40px;height:40px;border-radius:50%;margin-left:10px;}
+.navbar .dropdown{position:absolute;top:60px;right:0;background: var(--card);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);display:none;flex-direction:column;overflow:hidden;}
+.navbar .dropdown button{padding:10px 20px;width:100%;border:none;background:none;cursor:pointer;text-align:left;transition:0.2s all;}
+.navbar .dropdown button:hover{background:var(--background);}
+/* Sidebar */
+.sidebar{width:220px;background:var(--card);flex-shrink:0;display:flex;flex-direction:column;padding-top:20px;position:fixed;top:60px;bottom:0;left:0;transform:translateX(-100%);transition:transform 0.3s;}
+.sidebar.show{transform:translateX(0);}
+.sidebar a{padding:12px 20px;text-decoration:none;color:#333;font-weight:500;transition:0.2s;}
+.sidebar a:hover{background: var(--background);}
+/* Main */
+.main{margin-left:0;margin-top:60px;padding:20px;transition:margin-left 0.3s;}
+.main.shift{margin-left:220px;}
+/* Auth Card */
+.card{background: var(--card);padding:30px 25px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.1);width:100%; max-width:420px;text-align:center;transition: all 0.5s ease, transform 0.4s ease; margin:auto; margin-top:50px;}
+.card.fade-out{opacity:0; transform:translateY(-20px);}
+.card.fade-in{opacity:1; transform:translateY(0);}
+h2{margin-bottom:25px;font-weight:600;color:#333;}
+input{width:100%;padding:12px 15px;margin:8px 0;border-radius:10px;border:1px solid #ccc;font-size:14px;transition:0.2s all;}
+input:focus{border-color: var(--primary);outline:none;box-shadow:0 0 5px rgba(74,144,226,0.3);}
+button{width:100%;padding:12px;margin:8px 0;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px;transition:0.3s all;}
+button:hover{opacity:0.95; transform: translateY(-3px) scale(1.02); box-shadow:0 6px 15px rgba(0,0,0,0.1);}
+#socials{display:flex;justify-content:space-between;margin:12px 0;}
+#socials button{width:48%;display:flex;align-items:center;justify-content:center;font-weight:500;font-size:14px;border:1px solid #ccc;background:#fff;color:#333;border-radius:10px; transition:0.3s all;}
+#socials button img{width:18px;margin-right:8px;transition: transform 0.3s;}
+#socials button:hover img{transform: scale(1.2);}
+.show-pass{position:relative;}
+.show-pass input{padding-right:50px;}
+.show-pass span{position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:14px; color: var(--secondary); user-select:none;}
+.otp-box{width:36px;height:45px;text-align:center;font-size:18px;border-radius:8px;border:1px solid #ccc;}
+#otp-section{opacity:0; transition:opacity 0.5s ease;}
+#otp-section.show{opacity:1;}
+.error-msg{color:var(--danger);font-size:13px;margin-top:2px;min-height:16px;text-align:left;}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background: var(--primary);color:#fff;padding:12px 20px;border-radius:8px;opacity:0;pointer-events:none;transition: all 0.4s ease; z-index:1000;font-weight:500;}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+@media(min-width:768px){.sidebar{transform:translateX(0);}.main{margin-left:220px;}}
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="navbar">
+  <div class="menu-toggle" onclick="toggleSidebar()">☰</div>
+  <div class="profile">
+    <span id="userNameNav">User</span>
+    <img id="userAvatarNav" src="https://via.placeholder.com/40"/>
+    <div class="dropdown">
+      <button onclick="goToProfile()">Profile</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <a href="#">Dashboard</a>
+  <a href="#">Analytics</a>
+  <a href="#">Settings</a>
+</div>
+
+<!-- Main content -->
+<div class="main" id="mainContent">
+  <h1>Welcome, <span id="userNameMain">User</span>!</h1>
+  <p>This is your SaaS dashboard. Add widgets, charts, and more here.</p>
+</div>
+
+<!-- Auth Card -->
+<div class="card" id="auth-card">
+  <h2>Login / Signup</h2>
+  <input type="email" id="email" placeholder="Email">
+  <div class="error-msg" id="emailError"></div>
+  <div class="show-pass">
+    <input type="password" id="password" placeholder="Password">
+    <span id="togglePassword">Show</span>
+  </div>
+  <div class="error-msg" id="passwordError"></div>
+
+  <div class="actions" style="align-items:center; justify-content:space-between; flex-wrap:wrap;">
+    <label style="display:flex; align-items:center; gap:5px; font-size:14px; cursor:pointer;">
+      <input type="checkbox" id="rememberMe"> Remember Me
+    </label>
+    <a href="#" onclick="forgotPassword()" style="font-size:14px; color: var(--primary); text-decoration:none;">Forgot Password?</a>
+  </div>
+
+  <div class="actions">
+    <button onclick="register()" style="background: var(--primary)">Register</button>
+    <button onclick="login()" style="background: var(--success)">Login</button>
+  </div>
+
+  <p style="margin:10px 0;">Or sign in with</p>
+  <div id="socials">
+    <button onclick="googleLogin()"><img src="https://img.icons8.com/color/48/000000/google-logo.png"/> Google</button>
+    <button onclick="facebookLogin()"><img src="https://img.icons8.com/color/48/000000/facebook-new.png"/> Facebook</button>
+  </div>
+
+  <p style="margin:10px 0;">Phone Verification</p>
+  <input type="text" id="phone" placeholder="+91 9876543210">
+  <div id="recaptcha-container" style="margin:10px 0;"></div>
+  <button onclick="sendOTP()" style="background: var(--secondary)">Send OTP</button>
+
+  <div id="otp-section" class="hidden">
+    <p>Enter OTP:</p>
+    <div id="otp-inputs" style="display:flex; justify-content:space-between; gap:8px; max-width:250px; margin:10px auto;">
+      <input type="text" maxlength="1" class="otp-box">
+      <input type="text" maxlength="1" class="otp-box">
+      <input type="text" maxlength="1" class="otp-box">
+      <input type="text" maxlength="1" class="otp-box">
+      <input type="text" maxlength="1" class="otp-box">
+      <input type="text" maxlength="1" class="otp-box">
+    </div>
+    <button onclick="verifyOTP()" style="background: var(--primary); width:100%;">Verify OTP</button>
+  </div>
+
+  <div class="error-msg" id="generalError"></div>
+</div>
+
+<!-- Profile Card -->
+<div class="card" id="profile" style="display:none;">
+  <h2>Profile</h2>
+  <div class="avatar"><img id="avatarImg" src="" alt="Avatar"></div>
+  <p id="displayName"></p>
+  <p id="emailDisplay"></p>
+  <p id="phoneDisplay"></p>
+  <input type="text" id="newDisplayName" placeholder="Update Name">
+  <input type="text" id="newPhotoURL" placeholder="Update Photo URL">
+  <div class="actions">
+    <button onclick="updateProfile()" style="background: var(--primary)">Update Profile</button>
+    <button onclick="logout()" style="background: var(--danger)">Logout</button>
+  </div>
+</div>
+
+<script>
+// Firebase Config
+var firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {size:'normal'});
+window.recaptchaVerifier.render();
+
+// Elements
+const authCard=document.getElementById('auth-card');
+const profileCard=document.getElementById('profile');
+const otpSection=document.getElementById('otp-section');
+const emailError=document.getElementById('emailError');
+const passwordError=document.getElementById('passwordError');
+const generalError=document.getElementById('generalError');
+
+// Password toggle
+const togglePassword=document.getElementById('togglePassword');
+const passwordInput=document.getElementById('password');
+togglePassword.addEventListener('click',()=>{ const type=passwordInput.type==='password'?'text':'password'; passwordInput.type=type; togglePassword.textContent=type==='password'?'Show':'Hide'; });
+
+// Toast
+function showToast(msg,type='success'){ const toast=document.createElement('div'); toast.className='toast'; toast.style.background=type==='success'? 'var(--success)':'var(--danger)'; toast.innerText=msg; document.body.appendChild(toast); setTimeout(()=>toast.classList.add('show'),100); setTimeout(()=>{toast.classList.remove('show');setTimeout(()=>document.body.removeChild(toast),400);},3000); }
+
+// Card fade transition
+function fadeCard(showCard,hideCard){ hideCard.classList.add('fade-out'); setTimeout(()=>{ hideCard.style.display='none'; hideCard.classList.remove('fade-out'); showCard.style.display='block'; showCard.classList.add('fade-in'); setTimeout(()=>showCard.classList.remove('fade-in'),500); },400); }
+
+// OTP input
+const otpBoxes=document.querySelectorAll('.otp-box');
+otpBoxes.forEach((box,index)=>{ box.addEventListener('input',e=>{if(e.target.value.length===1 && index<otpBoxes.length-1) otpBoxes[index+1].focus();}); box.addEventListener('keydown',e=>{if(e.key==='Backspace' && !e.target.value && index>0) otpBoxes[index-1].focus();}); });
+function getOTPValue(){ return Array.from(otpBoxes).map(b=>b.value).join(''); }
+function resetOTPInputs(){ otpBoxes.forEach(b=>b.value=''); }
+function showOTPSection(){ otpSection.classList.add('show'); }
+
+function validateEmail(email){ return /\S+@\S+\.\S+/.test(email);}
+function validatePassword(password){ return password.length>=6; }
+
+// Sidebar & Navbar
+const profileEl=document.querySelector('.navbar .profile');
+const dropdownEl=document.querySelector('.navbar .dropdown');
+profileEl.addEventListener('click',()=>{ dropdownEl.style.display=dropdownEl.style.display==='flex'?'none':'flex'; });
+const sidebarEl=document.querySelector('.sidebar');
+function toggleSidebar(){ sidebarEl.classList.toggle('show'); document.querySelector('.main').classList.toggle('shift'); }
+
+// Auth functions
+firebase.auth().onAuthStateChanged(user=>{ if(user) showDashboard(user); else showAuth(); });
+
+function showProfileCard(user){ fadeCard(profileCard,document.getElementById('mainContent')); otpSection.classList.remove('show'); document.getElementById('avatarImg').src=user.photoURL||'https://via.placeholder.com/100'; document.getElementById('displayName').innerText=user.displayName||"No Name"; document.getElementById('emailDisplay').innerText=user.email?"Email: "+user.email:""; document.getElementById('phoneDisplay').innerText=user.phoneNumber?"Phone: "+user.phoneNumber:""; document.getElementById('newDisplayName').value=user.displayName||""; document.getElementById('newPhotoURL').value=user.photoURL||"";}
+function showAuth(){ authCard.style.display='block'; profileCard.style.display='none'; document.querySelector('.navbar').style.display='none'; sidebarEl.classList.remove('show'); document.querySelector('.main').classList.remove('shift'); otpSection.classList.remove('show'); }
+
+function showDashboard(user){ authCard.style.display='none'; profileCard.style.display='none'; document.querySelector('.navbar').style.display='flex'; sidebarEl.classList.add('show'); document.querySelector('.main').classList.add('shift'); document.getElementById('userNameMain').innerText=user.displayName||"User"; document.getElementById('userNameNav').innerText=user.displayName||"User"; document.getElementById('userAvatarNav').src=user.photoURL||'https://via.placeholder.com/40'; }
+
+// Register/Login/Forgot/OTP/Social/Profile
+function register(){ emailError.innerText=''; passwordError.innerText=''; generalError.innerText=''; const email=document.getElementById('email').value; const password=document.getElementById('password').value; if(!validateEmail(email)){ emailError.innerText='Invalid email format'; return;} if(!validatePassword(password)){ passwordError.innerText='Password must be at least 6 characters'; return;} firebase.auth().createUserWithEmailAndPassword(email,password).then(()=>showToast("Registered & logged in")).catch(e=>generalError.innerText=e.message);}
+function login(){ emailError.innerText=''; passwordError.innerText=''; generalError.innerText=''; const email=document.getElementById('email').value; const password=document.getElementById('password').value; const rememberMe=document.getElementById('rememberMe').checked; if(!validateEmail(email)){ emailError.innerText='Invalid email format'; return;} if(!validatePassword(password)){ passwordError.innerText='Password must be at least 6 characters'; return;} const persistence = rememberMe? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION; firebase.auth().setPersistence(persistence).then(()=>{ return firebase.auth().signInWithEmailAndPassword(email,password); }).then(()=>showToast("Logged in")).catch(e=>generalError.innerText=e.message);}
+function forgotPassword(){ const email=document.getElementById('email').value; if(!validateEmail(email)){ generalError.innerText="Enter valid email"; return;} firebase.auth().sendPasswordResetEmail(email).then(()=>showToast("Password reset email sent")).catch(e=>generalError.innerText=e.message);}
+function googleLogin(){ firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(()=>showToast("Google login success")).catch(e=>generalError.innerText=e.message);}
+function facebookLogin(){ firebase.auth().signInWithPopup(new firebase.auth.FacebookAuthProvider()).then(()=>showToast("Facebook login success")).catch(e=>generalError.innerText=e.message);}
+function sendOTP(){ generalError.innerText=''; const phone=document.getElementById('phone').value; if(!phone){ generalError.innerText="Enter phone number"; return;} firebase.auth().signInWithPhoneNumber(phone,window.recaptchaVerifier).then(res=>{ window.confirmationResult=res; showToast("OTP sent to "+phone); showOTPSection(); resetOTPInputs(); otpBoxes[0].focus(); }).catch(e=>generalError.innerText=e.message);}
+function verifyOTP(){ const code=getOTPValue(); if(code.length<6){ generalError.innerText="Enter all 6 digits"; return;} window.confirmationResult.confirm(code).then(()=>showToast("Phone verified & logged in")).catch(e=>generalError.innerText=e.message);}
+function updateProfile(){ const user=firebase.auth().currentUser; user.updateProfile({displayName:document.getElementById('newDisplayName').value, photoURL:document.getElementById('newPhotoURL').value}).then(()=>{ showToast("Profile updated"); showDashboard(user); }).catch(e=>generalError.innerText=e.message);}
+function logout(){ firebase.auth().signOut().then(()=>{ showToast("Logged out"); showAuth(); });}
+function goToProfile(){ showProfileCard(firebase.auth().currentUser);}
+</script>
+</body>
+</html>
